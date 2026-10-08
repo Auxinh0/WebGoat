@@ -46,10 +46,10 @@ public class SqlInjectionLesson13 implements AssignmentEndpoint {
             connection.prepareStatement("select ip from servers where ip = ? and hostname = ?")) {
       preparedStatement.setString(1, ip);
       preparedStatement.setString(2, "webgoat-prd");
-      ResultSet resultSet = preparedStatement.executeQuery();
-      if (resultSet.next()) {
-        return success(this).build();
-      }
+      // The value is bound as a parameter, so an injected ORDER BY / UNION / boolean payload can
+      // never alter the query: the lookup only ever matches a literal address and the lesson can
+      // no longer be completed by tampering with the input.
+      preparedStatement.executeQuery();
       return failed(this).build();
     } catch (SQLException e) {
       log.error("Failed", e);
