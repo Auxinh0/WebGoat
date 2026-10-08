@@ -24,14 +24,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class QuestionsAssignment implements AssignmentEndpoint {
 
-  private static final Map<String, String> COLORS = new HashMap<>();
+  /**
+   * The answers to the security question are no longer guessable colours: each account has an
+   * unpredictable answer that is generated when the application starts and never disclosed.
+   */
+  private static final Map<String, String> ANSWERS = new HashMap<>();
 
   static {
-    COLORS.put("admin", "green");
-    COLORS.put("jerry", "orange");
-    COLORS.put("tom", "purple");
-    COLORS.put("larry", "yellow");
-    COLORS.put("webgoat", "red");
+    java.security.SecureRandom random = new java.security.SecureRandom();
+    for (String user : new String[] {"admin", "jerry", "tom", "larry", "webgoat"}) {
+      byte[] bytes = new byte[24];
+      random.nextBytes(bytes);
+      ANSWERS.put(user, java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes));
+    }
   }
 
   @PostMapping(
@@ -46,13 +51,14 @@ public class QuestionsAssignment implements AssignmentEndpoint {
       return failed(this).feedback("password-questions-wrong-user").build();
     }
 
-    String validAnswer = COLORS.get(username.toLowerCase());
+    String validAnswer = ANSWERS.get(username.toLowerCase());
     if (validAnswer == null) {
       return failed(this)
           .feedback("password-questions-unknown-user")
           .feedbackArgs(username)
           .build();
-    } else if (validAnswer.equals(securityQuestion)) {
+    } else if (java.security.MessageDigest.isEqual(
+        validAnswer.getBytes(), securityQuestion.getBytes())) {
       return success(this).build();
     }
     return failed(this).build();

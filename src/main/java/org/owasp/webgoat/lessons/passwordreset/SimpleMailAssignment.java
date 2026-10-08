@@ -10,7 +10,6 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.inform
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.time.LocalDateTime;
-import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -29,6 +28,15 @@ import org.springframework.web.client.RestTemplate;
  */
 @RestController
 public class SimpleMailAssignment implements AssignmentEndpoint {
+  private static final java.time.Duration RESET_PASSWORD_LIFETIME =
+      java.time.Duration.ofMinutes(15);
+
+  private record ResetPassword(String password, java.time.Instant expiresAt) {}
+
+  private static final java.util.Map<String, ResetPassword> resetPasswords =
+      new java.util.concurrent.ConcurrentHashMap<>();
+  private final java.security.SecureRandom secureRandom = new java.security.SecureRandom();
+
   private final String webWolfURL;
   private RestTemplate restTemplate;
 
@@ -49,7 +57,16 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
     String emailAddress = ofNullable(email).orElse("unknown@webgoat.org");
     String username = extractUsername(emailAddress);
 
-    if (username.equals(webGoatUsername) && StringUtils.reverse(username).equals(password)) {
+    // The temporary password is an unpredictable value mailed to the user; it is single use
+    // and expires. It can no longer be derived from the username.
+    ResetPassword resetPassword = resetPasswords.get(username);
+    if (username.equals(webGoatUsername)
+        && resetPassword != null
+        && java.time.Instant.now().isBefore(resetPassword.expiresAt())
+        && password != null
+        && java.security.MessageDigest.isEqual(
+            resetPassword.password().getBytes(), password.getBytes())) {
+      resetPasswords.remove(username);
       return success(this).build();
     } else {
       return failed(this).feedbackArgs("password-reset-simple.password_incorrect").build();
@@ -73,6 +90,14 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
 
   private AttackResult sendEmail(String username, String email, String webGoatUsername) {
     if (username.equals(webGoatUsername)) {
+      byte[] bytes = new byte[18];
+      secureRandom.nextBytes(bytes);
+      String temporaryPassword =
+          java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+      resetPasswords.put(
+          username,
+          new ResetPassword(
+              temporaryPassword, java.time.Instant.now().plus(RESET_PASSWORD_LIFETIME)));
       PasswordResetEmail mailEvent =
           PasswordResetEmail.builder()
               .recipient(username)
@@ -80,7 +105,7 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
               .time(LocalDateTime.now())
               .contents(
                   "Thanks for resetting your password, your new password is: "
-                      + StringUtils.reverse(username))
+                      + temporaryPassword)
               .sender("webgoat@owasp.org")
               .build();
       try {
