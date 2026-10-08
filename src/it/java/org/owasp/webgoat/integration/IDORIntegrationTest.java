@@ -4,19 +4,15 @@
  */
 package org.owasp.webgoat.integration;
 
-import static org.junit.jupiter.api.DynamicTest.dynamicTest;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.is;
 
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
-import org.hamcrest.CoreMatchers;
-import org.hamcrest.MatcherAssert;
-import org.junit.jupiter.api.AfterEach;
+import org.apache.http.HttpStatus;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.api.Test;
 
 public class IDORIntegrationTest extends IntegrationTest {
 
@@ -25,80 +21,74 @@ public class IDORIntegrationTest extends IntegrationTest {
     startLesson("IDOR");
   }
 
-  @TestFactory
-  Iterable<DynamicTest> testIDORLesson() {
-    return Arrays.asList(
-        dynamicTest("assignment 2 - login", this::loginIDOR),
-        dynamicTest("profile", this::profile));
-  }
+  @Test
+  void lessonProfileAccessIsLimitedToTheAuthenticatedUser() {
+    RestAssured.given()
+        .relaxedHTTPSValidation()
+        .cookie("JSESSIONID", getWebGoatCookie())
+        .get(webGoatUrlConfig.url("IDOR/profile"))
+        .then()
+        .statusCode(HttpStatus.SC_UNAUTHORIZED);
 
-  @AfterEach
-  public void shutdown() {
-    checkResults("IDOR");
-  }
+    checkAssignment(
+        webGoatUrlConfig.url("IDOR/login"), Map.of("username", "tom", "password", "cat"), true);
 
-  private void loginIDOR() {
-
-    Map<String, Object> params = new HashMap<>();
-    params.put("username", "tom");
-    params.put("password", "cat");
-
-      checkAssignment(webGoatUrlConfig.url("IDOR/login"), params, true);
-  }
-
-  private void profile() {
-
-    // View profile - assignment 3a
-      MatcherAssert.assertThat(
+    Map<String, Object> ownProfile =
         RestAssured.given()
-            .when()
             .relaxedHTTPSValidation()
             .cookie("JSESSIONID", getWebGoatCookie())
             .get(webGoatUrlConfig.url("IDOR/profile"))
             .then()
-            .statusCode(200)
+            .statusCode(HttpStatus.SC_OK)
             .extract()
-            .path("userId"),
-        CoreMatchers.is("2342384"));
+            .jsonPath()
+            .getMap("$");
+    assertThat(ownProfile)
+        .containsEntry("name", "Tom Cat")
+        .doesNotContainKeys("userId", "role");
 
-    // Show difference - assignment 3b
-    Map<String, Object> params = new HashMap<>();
-    params.put("attributes", "userId,role");
-      checkAssignment(webGoatUrlConfig.url("IDOR/diff-attributes"), params, true);
-
-    // View profile another way - assignment 4
-    params.clear();
-    params.put("url", "WebGoat/IDOR/profile/2342384");
-      checkAssignment(webGoatUrlConfig.url("IDOR/profile/alt-path"), params, true);
-
-    // assignment 5a
-      MatcherAssert.assertThat(
+    Boolean exposedAttributesCompleted =
         RestAssured.given()
-            .when()
             .relaxedHTTPSValidation()
             .cookie("JSESSIONID", getWebGoatCookie())
-            .get(webGoatUrlConfig.url("IDOR/profile/2342388"))
+            .formParam("attributes", "userId,role")
+            .post(webGoatUrlConfig.url("IDOR/diff-attributes"))
             .then()
-            .statusCode(200)
+            .statusCode(HttpStatus.SC_OK)
             .extract()
-            .path("lessonCompleted"),
-        CoreMatchers.is(true));
+            .path("lessonCompleted");
+    assertThat(exposedAttributesCompleted).isFalse();
 
-    // assignment 5b
-      MatcherAssert.assertThat(
-        RestAssured.given()
-            .when()
-            .relaxedHTTPSValidation()
-            .cookie("JSESSIONID", getWebGoatCookie())
-            .contentType(ContentType.JSON) // part of the lesson
-            .body(
-                "{\"role\":\"1\", \"color\":\"red\", \"size\":\"large\", \"name\":\"Buffalo Bill\","
-                    + " \"userId\":\"2342388\"}")
-            .put(webGoatUrlConfig.url("IDOR/profile/2342388"))
-            .then()
-            .statusCode(200)
-            .extract()
-            .path("lessonCompleted"),
-        CoreMatchers.is(true));
+    checkAssignment(
+        webGoatUrlConfig.url("IDOR/profile/alt-path"),
+        Map.of("url", "WebGoat/IDOR/profile/2342384"),
+        false);
+
+    RestAssured.given()
+        .relaxedHTTPSValidation()
+        .cookie("JSESSIONID", getWebGoatCookie())
+        .formParam("url", "WebGoat/IDOR/profile/2342388")
+        .post(webGoatUrlConfig.url("IDOR/profile/alt-path"))
+        .then()
+        .statusCode(HttpStatus.SC_OK)
+        .body("lessonCompleted", is(false));
+    RestAssured.given()
+        .relaxedHTTPSValidation()
+        .cookie("JSESSIONID", getWebGoatCookie())
+        .get(webGoatUrlConfig.url("IDOR/profile/2342388"))
+        .then()
+        .statusCode(HttpStatus.SC_OK)
+        .body("lessonCompleted", is(false));
+    RestAssured.given()
+        .relaxedHTTPSValidation()
+        .cookie("JSESSIONID", getWebGoatCookie())
+        .contentType(ContentType.JSON)
+        .body(
+            "{\"role\":1,\"color\":\"red\",\"size\":\"large\",\"name\":\"Buffalo Bill\","
+                + "\"userId\":\"2342388\"}")
+        .put(webGoatUrlConfig.url("IDOR/profile/2342388"))
+        .then()
+        .statusCode(HttpStatus.SC_OK)
+        .body("lessonCompleted", is(false));
   }
 }

@@ -8,11 +8,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
-import org.owasp.webgoat.lessons.challenges.Flags;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,8 +18,6 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Slf4j
-@RequiredArgsConstructor
 public class Assignment8 implements AssignmentEndpoint {
 
   private static final Map<Integer, Integer> votes = new HashMap<>();
@@ -35,24 +30,15 @@ public class Assignment8 implements AssignmentEndpoint {
     votes.put(5, 300);
   }
 
-  private final Flags flags;
-
   @GetMapping(value = "/challenge/8/vote/{stars}", produces = MediaType.APPLICATION_JSON_VALUE)
   @ResponseBody
   public ResponseEntity<?> vote(
       @PathVariable(value = "stars") int nrOfStars, HttpServletRequest request) {
-    // Simple implementation of VERB Based Authentication
-    String msg = "";
-    if (request.getMethod().equals("GET")) {
-      var json =
-          Map.of("error", true, "message", "Sorry but you need to login first in order to vote");
-      return ResponseEntity.status(200).body(json);
+    if (!"GET".equals(request.getMethod())) {
+      return ResponseEntity.status(405).build();
     }
-    Integer allVotesForStar = votes.getOrDefault(nrOfStars, 0);
-    votes.put(nrOfStars, allVotesForStar + 1);
-    return ResponseEntity.ok()
-        .header("X-FlagController", "Thanks for voting, your flag is: " + flags.getFlag(8))
-        .build();
+    return ResponseEntity.ok(
+        Map.of("error", true, "message", "Sorry but you need to login first in order to vote"));
   }
 
   @GetMapping("/challenge/8/votes/")

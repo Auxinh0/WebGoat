@@ -8,6 +8,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputFilter;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
@@ -17,12 +18,19 @@ public class SerializationHelper {
 
   private static final char[] hexArray = "0123456789ABCDEF".toCharArray();
 
+  /** Only the task holder and the JDK value types it is composed of may be deserialized. */
+  public static final ObjectInputFilter TASK_FILTER =
+      ObjectInputFilter.Config.createFilter(
+          "maxdepth=6;maxrefs=32;maxbytes=8192;maxarray=512;"
+              + "org.dummy.insecure.framework.VulnerableTaskHolder;"
+              + "java.time.Ser;java.time.LocalDateTime;java.lang.String;!*");
+
   public static Object fromString(String s) throws IOException, ClassNotFoundException {
     byte[] data = Base64.getDecoder().decode(s);
-    ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(data));
-    Object o = ois.readObject();
-    ois.close();
-    return o;
+    try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(data))) {
+      ois.setObjectInputFilter(TASK_FILTER);
+      return ois.readObject();
+    }
   }
 
   public static String toString(Serializable o) throws IOException {

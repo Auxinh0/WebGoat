@@ -74,13 +74,23 @@ public class ProfileZipSlip extends ProfileUploadBase {
 
       ZipFile zip = new ZipFile(uploadedZipFile.toFile());
       Enumeration<? extends ZipEntry> entries = zip.entries();
+      var extractionRoot = tmpZipDirectory.toRealPath();
       while (entries.hasMoreElements()) {
         ZipEntry e = entries.nextElement();
-        File f = new File(tmpZipDirectory.toFile(), e.getName());
-        InputStream is = zip.getInputStream(e);
-        Files.copy(is, f.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        var target = extractionRoot.resolve(e.getName()).normalize();
+        // an entry may never be written outside of the extraction directory
+        if (!target.startsWith(extractionRoot)) {
+          return failed(this).feedback("path-traversal-zip-slip.no-zip").build();
+        }
+        if (e.isDirectory()) {
+          Files.createDirectories(target);
+          continue;
+        }
+        Files.createDirectories(target.getParent());
+        try (InputStream is = zip.getInputStream(e)) {
+          Files.copy(is, target, StandardCopyOption.REPLACE_EXISTING);
+        }
       }
-
       return isSolved(currentImage, getProfilePictureAsBase64(username));
     } catch (IOException e) {
       return failed(this).output(e.getMessage()).build();

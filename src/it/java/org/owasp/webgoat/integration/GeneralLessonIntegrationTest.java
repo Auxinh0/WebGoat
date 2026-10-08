@@ -121,8 +121,8 @@ public class GeneralLessonIntegrationTest extends IntegrationTest {
     params.clear();
     params.put("username", "CaptainJack");
     params.put("password", "BlackPearl");
-      checkAssignment(webGoatUrlConfig.url("InsecureLogin/task"), params, true);
-    checkResults("InsecureLogin");
+      checkAssignment(webGoatUrlConfig.url("InsecureLogin/task"), params, false);
+    // The insecure-login exercise is intentionally no longer solvable with sniffed credentials.
   }
 
   @Test
@@ -166,19 +166,13 @@ public class GeneralLessonIntegrationTest extends IntegrationTest {
     startLesson("ChromeDevTools");
 
     Map<String, Object> params = new HashMap<>();
-    params.clear();
-    params.put("param1", "42");
-    params.put("param2", "24");
-
       String result =
         RestAssured.given()
             .when()
             .relaxedHTTPSValidation()
             .cookie("JSESSIONID", getWebGoatCookie())
-            .header("webgoat-requested-by", "dom-xss-vuln")
             .header("X-Requested-With", "XMLHttpRequest")
-            .formParams(params)
-            .post(webGoatUrlConfig.url("CrossSiteScripting/phone-home-xss"))
+            .post(webGoatUrlConfig.url("ChromeDevTools/phone-home"))
             .then()
             .statusCode(200)
             .extract()

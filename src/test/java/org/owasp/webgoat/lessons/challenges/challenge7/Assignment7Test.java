@@ -4,15 +4,23 @@
  */
 package org.owasp.webgoat.lessons.challenges.challenge7;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.owasp.webgoat.container.plugins.LessonTest;
+import org.owasp.webgoat.lessons.challenges.Email;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpStatus;
@@ -39,9 +47,8 @@ class Assignment7Test extends LessonTest {
 
     result =
         mockMvc.perform(
-            MockMvcRequestBuilders.get(
-                RESET_PASSWORD_PATH + "/" + Assignment7.ADMIN_PASSWORD_LINK));
-    result.andExpect(status().is(equalTo(HttpStatus.ACCEPTED.value())));
+            MockMvcRequestBuilders.get(RESET_PASSWORD_PATH + "/375afe1104f4a487a73823c50a9292a2"));
+    result.andExpect(status().is(equalTo(HttpStatus.I_AM_A_TEAPOT.value())));
   }
 
   @Test
@@ -50,15 +57,39 @@ class Assignment7Test extends LessonTest {
     ResultActions result =
         mockMvc.perform(
             MockMvcRequestBuilders.post(CHALLENGE_PATH)
-                .param("email", "webgoat@webgoat-cloud.net"));
+                .header("Host", "attacker.example")
+                .param("email", "test@webgoat.org"));
     result.andExpect(status().isOk());
-    result.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+    result.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+
+    ArgumentCaptor<Email> sentEmail = ArgumentCaptor.forClass(Email.class);
+    verify(restTemplate).postForEntity(eq(webWolfMailURL), sentEmail.capture(), eq(Object.class));
+    String contents = sentEmail.getValue().getContents();
+    org.hamcrest.MatcherAssert.assertThat(contents, not(containsString("attacker.example")));
+    Matcher link = Pattern.compile("/reset-password/([A-Za-z0-9_-]{43})").matcher(contents);
+    org.junit.jupiter.api.Assertions.assertTrue(link.find());
+
+    mockMvc
+        .perform(MockMvcRequestBuilders.get(RESET_PASSWORD_PATH + "/" + link.group(1)))
+        .andExpect(status().isAccepted());
+    mockMvc
+        .perform(MockMvcRequestBuilders.get(RESET_PASSWORD_PATH + "/" + link.group(1)))
+        .andExpect(status().is(HttpStatus.I_AM_A_TEAPOT.value()));
+  }
+
+  @Test
+  void cannotRequestAdminLinkFromAnotherAccount() throws Exception {
+    mockMvc
+        .perform(MockMvcRequestBuilders.post(CHALLENGE_PATH).param("email", "admin@webgoat.org"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+    verifyNoInteractions(restTemplate);
   }
 
   @Test
   @DisplayName("git test")
   void gitTest() throws Exception {
     ResultActions result = mockMvc.perform(MockMvcRequestBuilders.get(GIT_PATH));
-    result.andExpect(content().contentType("application/zip"));
+    result.andExpect(status().isNotFound());
   }
 }

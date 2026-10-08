@@ -19,6 +19,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,6 +38,13 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
 
+  /** The only JWKS location the application trusts: its own key endpoint. */
+  private final String trustedJwksUrl;
+
+  public JWTHeaderJKUEndpoint(@Value("${webgoat.url}") String webGoatUrl) {
+    this.trustedJwksUrl = webGoatUrl + "/JWT/jwks/.well-known/jwks.json";
+  }
+
   @PostMapping("jku/follow/{user}")
   public @ResponseBody String follow(@PathVariable("user") String user) {
     if ("Jerry".equals(user)) {
@@ -54,7 +62,15 @@ public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
       try {
         var decodedJWT = JWT.decode(token);
         var jku = decodedJWT.getHeaderClaim("jku");
-        var jwkProvider = new JwkProviderBuilder(new URL(jku.asString())).build();
+        // The jku header is attacker controlled: only fetch the key set from the trusted
+        // location, never from an arbitrary URL supplied in the token.
+        if (jku == null || jku.asString() == null || !trustedJwksUrl.equals(jku.asString())) {
+          return failed(this).feedback("jwt-invalid-token").output("untrusted jku").build();
+        }
+        if (!"RS256".equals(decodedJWT.getAlgorithm())) {
+          return failed(this).feedback("jwt-invalid-token").build();
+        }
+        var jwkProvider = new JwkProviderBuilder(new URL(trustedJwksUrl)).build();
         var jwk = jwkProvider.get(decodedJWT.getKeyId());
         var algorithm = Algorithm.RSA256((RSAPublicKey) jwk.getPublicKey());
         JWT.require(algorithm).build().verify(decodedJWT);
@@ -68,7 +84,10 @@ public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
         } else {
           return failed(this).feedback("jwt-final-not-tom").build();
         }
-      } catch (MalformedURLException | JWTVerificationException | JwkException e) {
+      } catch (MalformedURLException
+          | JWTVerificationException
+          | JwkException
+          | IllegalArgumentException e) {
         return failed(this).feedback("jwt-invalid-token").output(e.toString()).build();
       }
     }

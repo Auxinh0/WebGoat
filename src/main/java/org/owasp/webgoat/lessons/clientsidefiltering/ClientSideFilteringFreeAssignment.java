@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.clientsidefiltering;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -26,14 +25,10 @@ import org.springframework.web.bind.annotation.RestController;
   "client.side.filtering.free.hint3"
 })
 public class ClientSideFilteringFreeAssignment implements AssignmentEndpoint {
-  public static final String SUPER_COUPON_CODE = "get_it_for_free";
-
   @PostMapping("/clientSideFiltering/getItForFree")
   @ResponseBody
   public AttackResult completed(@RequestParam String checkoutCode) {
-    if (SUPER_COUPON_CODE.equals(checkoutCode)) {
-      return success(this).build();
-    }
+    // A client-supplied code is not proof that a free checkout was authorized.
     return failed(this).build();
   }
 }

@@ -41,29 +41,20 @@ public class IDORViewOtherProfile implements AssignmentEndpoint {
       produces = {"application/json"})
   @ResponseBody
   public AttackResult completed(@PathVariable("userId") String userId) {
-
-    Object obj = userSessionData.getValue("idor-authenticated-as");
-    if (obj != null && obj.equals("tom")) {
-      // going to use session auth to view this one
-      String authUserId = (String) userSessionData.getValue("idor-authenticated-user-id");
-      if (userId != null && !userId.equals(authUserId)) {
-        // on the right track
-        UserProfile requestedProfile = new UserProfile(userId);
-        // secure code would ensure there was a horizontal access control check prior to dishing up
-        // the requested profile
-        if (requestedProfile.getUserId() != null
-            && requestedProfile.getUserId().equals("2342388")) {
-          return success(this)
-              .feedback("idor.view.profile.success")
-              .output(requestedProfile.profileToMap().toString())
-              .build();
-        } else {
-          return failed(this).feedback("idor.view.profile.close1").build();
-        }
-      } else {
-        return failed(this).feedback("idor.view.profile.close2").build();
-      }
+    String ownId = IDORAccessPolicy.requireLessonUserId(userSessionData);
+    if (!ownId.equals(userId) && !IDORAccessPolicy.isWebGoatAdmin()) {
+      return failed(this).feedback("idor.view.profile.close1").build();
     }
-    return failed(this).build();
+    UserProfile profile = IDORAccessPolicy.getProfile(userSessionData, userId);
+    if (ownId.equals(userId)) {
+      return failed(this)
+          .feedback("idor.view.profile.close2")
+          .output(profile.publicProfileToMap().toString())
+          .build();
+    }
+    return success(this)
+        .feedback("idor.view.profile.success")
+        .output(profile.profileToMap().toString())
+        .build();
   }
 }

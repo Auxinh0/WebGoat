@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.insecurelogin;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -18,9 +17,8 @@ public class InsecureLoginTask implements AssignmentEndpoint {
   @PostMapping("/InsecureLogin/task")
   @ResponseBody
   public AttackResult completed(@RequestParam String username, @RequestParam String password) {
-    if ("CaptainJack".equals(username) && "BlackPearl".equals(password)) {
-      return success(this).build();
-    }
+    // The demo login no longer transmits (or embeds in JavaScript) any credentials, so there
+    // is nothing to sniff; submitted credentials are never compared against built-in secrets.
     return failed(this).build();
   }
 

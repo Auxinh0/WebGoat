@@ -5,9 +5,9 @@
 package org.owasp.webgoat.lessons.sqlinjection.introduction;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -46,44 +46,28 @@ public class SqlInjectionLesson10 implements AssignmentEndpoint {
 
   protected AttackResult injectableQueryAvailability(String action) {
     StringBuilder output = new StringBuilder();
-    String query = "SELECT * FROM access_log WHERE action LIKE '%" + action + "%'";
+    // The LIKE pattern is bound, so the action can never be turned into a statement that drops a
+    // table: the access_log table always stays available.
+    String query = "SELECT * FROM access_log WHERE action LIKE ?";
 
     try (Connection connection = dataSource.getConnection()) {
-      try {
-        Statement statement =
-            connection.createStatement(
-                ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
-        ResultSet results = statement.executeQuery(query);
-
-        if (results.getStatement() != null) {
-          results.first();
-          output.append(SqlInjectionLesson8.generateTable(results));
-          return failed(this)
-              .feedback("sql-injection.10.entries")
-              .output(output.toString())
-              .build();
-        } else {
-          if (tableExists(connection)) {
-            return failed(this)
-                .feedback("sql-injection.10.entries")
-                .output(output.toString())
-                .build();
-          } else {
-            return success(this).feedback("sql-injection.10.success").build();
+      try (PreparedStatement statement =
+          connection.prepareStatement(
+              query, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)) {
+        statement.setString(1, "%" + action + "%");
+        try (ResultSet results = statement.executeQuery()) {
+          if (results.next()) {
+            output.append(SqlInjectionLesson8.generateTable(results));
           }
         }
+        return failed(this)
+            .feedback("sql-injection.10.entries")
+            .output(output.toString())
+            .build();
       } catch (SQLException e) {
-        if (tableExists(connection)) {
-          return failed(this)
-              .output(
-                  "<span class='feedback-negative'>"
-                      + e.getMessage()
-                      + "</span><br>"
-                      + output.toString())
-              .build();
-        } else {
-          return success(this).feedback("sql-injection.10.success").build();
-        }
+        return failed(this)
+            .output("<span class='feedback-negative'>" + e.getMessage() + "</span>")
+            .build();
       }
 
     } catch (Exception e) {

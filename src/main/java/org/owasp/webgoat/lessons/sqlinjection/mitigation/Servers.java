@@ -44,17 +44,27 @@ public class Servers {
     this.dataSource = dataSource;
   }
 
+  private static final java.util.Set<String> ALLOWED_COLUMNS =
+      java.util.Set.of("id", "hostname", "ip", "mac", "status", "description");
+
   @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
   @ResponseBody
   public List<Server> sort(@RequestParam String column) throws Exception {
     List<Server> servers = new ArrayList<>();
+
+    // Only a known column may be used for ordering: the value is never concatenated into the
+    // statement, so an ORDER BY clause cannot be swapped for a sub-query that leaks data.
+    String sortColumn = column == null ? "id" : column.trim().toLowerCase(java.util.Locale.ROOT);
+    if (!ALLOWED_COLUMNS.contains(sortColumn)) {
+      sortColumn = "id";
+    }
 
     try (var connection = dataSource.getConnection()) {
       try (var statement =
           connection.prepareStatement(
               "select id, hostname, ip, mac, status, description from SERVERS where status <> 'out"
                   + " of order' order by "
-                  + column)) {
+                  + sortColumn)) {
         try (var rs = statement.executeQuery()) {
           while (rs.next()) {
             Server server =

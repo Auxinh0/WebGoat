@@ -17,6 +17,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.jsoup.Jsoup;
+import org.jsoup.safety.Safelist;
 
 /**
  * @author nbaars
@@ -28,6 +30,14 @@ import lombok.NoArgsConstructor;
 @Entity
 @NoArgsConstructor
 public class Email implements Serializable {
+
+  private static final Safelist SAFE_MAIL_HTML =
+      Safelist.none()
+          .addTags("a")
+          .addAttributes("a", "href")
+          .addProtocols("a", "href", "http", "https")
+          .addEnforcedAttribute("a", "target", "_blank")
+          .addEnforcedAttribute("a", "rel", "noopener noreferrer");
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -41,6 +51,16 @@ public class Email implements Serializable {
   private String sender;
   private String title;
   private String recipient;
+
+  @JsonIgnore
+  public String getSafeContents() {
+    if (contents == null) {
+      return "";
+    }
+    return Jsoup.isValid(contents, SAFE_MAIL_HTML)
+        ? contents
+        : Jsoup.clean(contents, SAFE_MAIL_HTML);
+  }
 
   public String getSummary() {
     return "-" + this.contents.substring(0, Math.min(50, contents.length()));

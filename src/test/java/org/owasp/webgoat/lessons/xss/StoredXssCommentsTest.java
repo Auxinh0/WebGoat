@@ -11,14 +11,13 @@ import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.Test;
 import org.owasp.webgoat.container.plugins.LessonTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 class StoredXssCommentsTest extends LessonTest {
 
   @Test
-  void success() throws Exception {
+  void scriptCommentIsSavedButDoesNotCompleteAssignment() throws Exception {
     ResultActions results =
         mockMvc.perform(
             MockMvcRequestBuilders.post("/CrossSiteScriptingStored/stored-xss")
@@ -27,44 +26,53 @@ class StoredXssCommentsTest extends LessonTest {
                 .contentType(MediaType.APPLICATION_JSON));
 
     results.andExpect(status().isOk());
-    results.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+    results.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+
+    mockMvc
+        .perform(MockMvcRequestBuilders.get("/CrossSiteScriptingStored/stored-xss"))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath(
+                "$[*].text",
+                CoreMatchers.hasItem(
+                    CoreMatchers.containsString("<script>webgoat.customjs.phoneHome()</script>"))));
   }
 
   @Test
-  void failure() throws Exception {
+  void ordinaryCommentIsStillSaved() throws Exception {
     ResultActions results =
         mockMvc.perform(
             MockMvcRequestBuilders.post("/CrossSiteScriptingStored/stored-xss")
-                .content("{\"text\":\"someTextHere<script>alert('Xss')</script>MoreTextHere\"}")
+                .content("{\"text\":\"A plain comment\"}")
                 .contentType(MediaType.APPLICATION_JSON));
 
     results.andExpect(status().isOk());
     results.andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+
+    mockMvc
+        .perform(MockMvcRequestBuilders.get("/CrossSiteScriptingStored/stored-xss"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[*].text", CoreMatchers.hasItem("A plain comment")));
   }
 
-  /* For the next two tests there is a comment seeded ...
-     comments.add(new Comment("secUriTy", DateTime.now().toString(fmt), "<script>console.warn('unit test me')</script>Comment for Unit Testing"));
-     ... the isEncoded method will remain commented out as it will fail (because WebGoat isn't supposed to be secure)
-  */
-
-  // Ensures it is vulnerable
   @Test
-  public void isNotEncoded() throws Exception {
-    // do get to get comments after posting xss payload
-    ResultActions taintedResults =
-        mockMvc.perform(MockMvcRequestBuilders.get("/CrossSiteScriptingStored/stored-xss"));
-    MvcResult mvcResult = taintedResults.andReturn();
-    assert (mvcResult.getResponse().getContentAsString().contains("<script>console.warn"));
+  void followUpCannotUseAnUnrelatedNumber() throws Exception {
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/CrossSiteScriptingStored/stored-xss-follow-up")
+                .param("successMessage", "12345"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
   }
 
-  // Could be used to test an encoding solution ... commented out so build will pass. Uncommenting
-  // will fail build, but leaving in as positive Security Unit Test
-  //    @Test
-  //    public void isEncoded() throws Exception {
-  //        //do get to get comments after posting xss payload
-  //        ResultActions taintedResults =
-  // mockMvc.perform(MockMvcRequestBuilders.get("/CrossSiteScripting/stored-xss"));
-  //
-  // taintedResults.andExpect(jsonPath("$[0].text",CoreMatchers.is(CoreMatchers.containsString("&lt;scriptgt;"))));
-  //    }
+  @Test
+  void malformedCommentDoesNotCrash() throws Exception {
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/CrossSiteScriptingStored/stored-xss")
+                .content("not JSON")
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
+  }
 }

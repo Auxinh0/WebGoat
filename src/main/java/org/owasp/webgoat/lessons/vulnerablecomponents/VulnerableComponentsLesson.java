@@ -23,38 +23,9 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
 
   @PostMapping("/VulnerableComponents/attack1")
   public @ResponseBody AttackResult completed(@RequestParam String payload) {
-    XStream xstream = new XStream();
-    xstream.setClassLoader(Contact.class.getClassLoader());
-    xstream.alias("contact", ContactImpl.class);
-    xstream.ignoreUnknownElements();
-    Contact contact = null;
-
-    try {
-      if (!StringUtils.isEmpty(payload)) {
-        payload =
-            payload
-                .replace("+", "")
-                .replace("\r", "")
-                .replace("\n", "")
-                .replace("> ", ">")
-                .replace(" <", "<");
-      }
-      contact = (Contact) xstream.fromXML(payload);
-    } catch (Exception ex) {
-      return failed(this).feedback("vulnerable-components.close").output(ex.getMessage()).build();
-    }
-
-    try {
-      if (null != contact) {
-        contact.getFirstName(); // trigger the example like
-        // https://x-stream.github.io/CVE-2013-7285.html
-      }
-      if (!(contact instanceof ContactImpl)) {
-        return success(this).feedback("vulnerable-components.success").build();
-      }
-    } catch (Exception e) {
-      return success(this).feedback("vulnerable-components.success").output(e.getMessage()).build();
-    }
-    return failed(this).feedback("vulnerable-components.fromXML").feedbackArgs(contact).build();
+    // The vulnerable XStream (1.4.5) cannot restrict the classes it instantiates, so user
+    // supplied XML is no longer deserialized into arbitrary Java objects at all. That gadget
+    // chain is exactly what executed code (CVE-2013-7285); the lesson no longer accepts it.
+    return failed(this).feedback("vulnerable-components.close").build();
   }
 }

@@ -4,7 +4,6 @@
  */
 package org.owasp.webgoat.lessons.clientsidefiltering;
 
-import static org.owasp.webgoat.lessons.clientsidefiltering.ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 import org.hamcrest.CoreMatchers;
@@ -26,12 +25,12 @@ public class ClientSideFilteringAssignmentTest extends LessonTest {
   }
 
   @Test
-  public void success() throws Exception {
+  public void leakedFreeCodeDoesNotCompleteCheckout() throws Exception {
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/clientSideFiltering/getItForFree")
-                .param("checkoutCode", SUPER_COUPON_CODE))
-        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+                .param("checkoutCode", "get_it_for_free"))
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
   }
 
   @Test

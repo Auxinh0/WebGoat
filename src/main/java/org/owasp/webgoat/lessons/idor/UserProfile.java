@@ -54,6 +54,14 @@ public class UserProfile {
     return profileMap;
   }
 
+  public Map<String, Object> publicProfileToMap() {
+    Map<String, Object> profileMap = new HashMap<>();
+    profileMap.put("name", this.name);
+    profileMap.put("color", this.color);
+    profileMap.put("size", this.size);
+    return profileMap;
+  }
+
   public String toHTMLString() {
     String htmlBreak = "<br/>";
     return "userId"

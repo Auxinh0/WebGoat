@@ -10,7 +10,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import jakarta.servlet.http.Cookie;
-import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.owasp.webgoat.container.plugins.LessonTest;
@@ -52,7 +51,6 @@ public class CSRFFeedbackTest extends LessonTest {
                 .content(
                     "{\"name\": \"Test\", \"email\": \"test1233@dfssdf.de\", \"subject\":"
                         + " \"service\", \"message\":\"dsaffd\"}"))
-        .andExpect(jsonPath("lessonCompleted", is(true)))
-        .andExpect(jsonPath("feedback", StringContains.containsString("the flag is: ")));
+        .andExpect(jsonPath("lessonCompleted", is(false)));
   }
 }

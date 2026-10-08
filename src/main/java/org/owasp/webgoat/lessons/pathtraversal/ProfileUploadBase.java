@@ -6,7 +6,6 @@ package org.owasp.webgoat.lessons.pathtraversal;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -49,17 +48,19 @@ public class ProfileUploadBase implements AssignmentEndpoint {
 
     try {
       var uploadedFile = new File(uploadDirectory, fullName);
+      if (attemptWasMade(uploadDirectory, uploadedFile)) {
+        return failed(this)
+            .attemptWasMade()
+            .feedback("path-traversal-profile-attempt")
+            .feedbackArgs(uploadedFile.getCanonicalPath())
+            .build();
+      }
       uploadedFile.createNewFile();
       FileCopyUtils.copy(file.getBytes(), uploadedFile);
-
-      if (attemptWasMade(uploadDirectory, uploadedFile)) {
-        return solvedIt(uploadedFile);
-      }
       return informationMessage(this)
           .feedback("path-traversal-profile-updated")
           .feedbackArgs(uploadedFile.getAbsoluteFile())
           .build();
-
     } catch (IOException e) {
       return failed(this).output(e.getMessage()).build();
     }
@@ -80,17 +81,6 @@ public class ProfileUploadBase implements AssignmentEndpoint {
     return !expectedUploadDirectory
         .getCanonicalPath()
         .equals(uploadedFile.getParentFile().getCanonicalPath());
-  }
-
-  private AttackResult solvedIt(File uploadedFile) throws IOException {
-    if (uploadedFile.getCanonicalFile().getParentFile().getName().endsWith("PathTraversal")) {
-      return success(this).build();
-    }
-    return failed(this)
-        .attemptWasMade()
-        .feedback("path-traversal-profile-attempt")
-        .feedbackArgs(uploadedFile.getCanonicalPath())
-        .build();
   }
 
   public ResponseEntity<?> getProfilePicture(@CurrentUsername String username) {

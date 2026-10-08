@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.deserialization;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -32,16 +31,16 @@ public class InsecureDeserializationTask implements AssignmentEndpoint {
   @PostMapping("/InsecureDeserialization/task")
   @ResponseBody
   public AttackResult completed(@RequestParam String token) throws IOException {
-    String b64token;
-    long before;
-    long after;
-    int delay;
-
-    b64token = token.replace('-', '+').replace('_', '/');
+    if (token == null || token.length() > 16384) {
+      return failed(this).feedback("insecure-deserialization.invalidversion").build();
+    }
+    String b64token = token.replace('-', '+').replace('_', '/');
 
     try (ObjectInputStream ois =
         new ObjectInputStream(new ByteArrayInputStream(Base64.getDecoder().decode(b64token)))) {
-      before = System.currentTimeMillis();
+      // Deserialization is restricted to the expected task type and the JDK value types it
+      // contains; restoring a task never executes its action.
+      ois.setObjectInputFilter(SerializationHelper.TASK_FILTER);
       Object o = ois.readObject();
       if (!(o instanceof VulnerableTaskHolder)) {
         if (o instanceof String) {
@@ -49,7 +48,6 @@ public class InsecureDeserializationTask implements AssignmentEndpoint {
         }
         return failed(this).feedback("insecure-deserialization.wrongobject").build();
       }
-      after = System.currentTimeMillis();
     } catch (InvalidClassException e) {
       return failed(this).feedback("insecure-deserialization.invalidversion").build();
     } catch (IllegalArgumentException e) {
@@ -57,14 +55,7 @@ public class InsecureDeserializationTask implements AssignmentEndpoint {
     } catch (Exception e) {
       return failed(this).feedback("insecure-deserialization.invalidversion").build();
     }
-
-    delay = (int) (after - before);
-    if (delay > 7000) {
-      return failed(this).build();
-    }
-    if (delay < 3000) {
-      return failed(this).build();
-    }
-    return success(this).build();
+    // the restored task is only data, it is not executed by the server
+    return failed(this).feedback("insecure-deserialization.wrongobject").build();
   }
 }
